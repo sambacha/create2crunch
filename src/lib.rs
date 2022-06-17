@@ -68,20 +68,11 @@ impl Config {
         // get args, skipping first arg (program name)
         args.next();
 
-        let mut factory_address_string = match args.next() {
-            Some(arg) => arg,
-            None => return Err("didn't get a factory_address argument."),
-        };
+        let mut factory_address_string = args.next().ok_or_else(|| "didn't get a factory_address argument.")?;
 
-        let mut calling_address_string = match args.next() {
-            Some(arg) => arg,
-            None => return Err("didn't get a calling_address argument."),
-        };
+        let mut calling_address_string = args.next().ok_or_else(|| "didn't get a calling_address argument.")?;
 
-        let mut init_code_hash_string = match args.next() {
-            Some(arg) => arg,
-            None => return Err("didn't get an init_code_hash argument."),
-        };
+        let mut init_code_hash_string = args.next().ok_or_else(|| "didn't get an init_code_hash argument.")?;
 
         let gpu_device_string = match args.next() {
             Some(arg) => arg,
