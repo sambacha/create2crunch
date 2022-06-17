@@ -42,7 +42,7 @@ const CONTROL_CHARACTER: u8 = 0xff;
 const ZERO_REWARD: &str = "0";
 const MAX_INCREMENTER: u64 = 0xffffffffffff;
 
-static KERNEL_SRC: &'static str = include_str!("./kernels/keccak256.cl");
+static KERNEL_SRC: &str = include_str!("./kernels/keccak256.cl");
 
 /// Requires three hex-encoded arguments: the address of the contract that will
 /// be calling CREATE2, the address of the caller of said contract *(assuming
@@ -68,20 +68,11 @@ impl Config {
         // get args, skipping first arg (program name)
         args.next();
 
-        let mut factory_address_string = match args.next() {
-            Some(arg) => arg,
-            None => return Err("didn't get a factory_address argument."),
-        };
+        let mut factory_address_string = args.next().ok_or("didn't get a factory_address argument.")?;
 
-        let mut calling_address_string = match args.next() {
-            Some(arg) => arg,
-            None => return Err("didn't get a calling_address argument."),
-        };
+        let mut calling_address_string = args.next().ok_or("didn't get a calling_address argument.")?;
 
-        let mut init_code_hash_string = match args.next() {
-            Some(arg) => arg,
-            None => return Err("didn't get an init_code_hash argument."),
-        };
+        let mut init_code_hash_string = args.next().ok_or("didn't get an init_code_hash argument.")?;
 
         let gpu_device_string = match args.next() {
             Some(arg) => arg,
@@ -315,12 +306,11 @@ pub fn cpu(config: Config) -> Result<(), Box<dyn Error>> {
 
                     // get the address that results from the hash
                     let address_hex_string = hex::encode(&address_bytes);
-                    let address = format!("{}", &address_hex_string);
+                    let address = (&address_hex_string).to_string();
 
                     // get the full salt used to create the address
                     let header_hex_string = hex::encode(&header_vec);
-                    let body_hex_string = hex::encode(salt_incremented_segment
-                                                        .to_vec());
+                    let body_hex_string = hex::encode(salt_incremented_segment);
                     let full_salt = format!(
                       "0x{}{}",
                       &header_hex_string[42..],
@@ -335,7 +325,7 @@ pub fn cpu(config: Config) -> Result<(), Box<dyn Error>> {
                     let mut checksum_hash = Keccak::new_keccak256();
 
                     // update with utf8-encoded address (total: 20 bytes)
-                    checksum_hash.update(&address_encoded);
+                    checksum_hash.update(address_encoded);
 
                     // hash the payload and get the result
                     let mut checksum_res: [u8; 32] = [0; 32];
@@ -357,13 +347,13 @@ pub fn cpu(config: Config) -> Result<(), Box<dyn Error>> {
                             checksum_address = format!(
                               "{}{}",
                               checksum_address,
-                              character.to_uppercase().to_string()
+                              character.to_uppercase()
                             );
                         } else {
                             checksum_address = format!(
                               "{}{}",
                               checksum_address,
-                              character.to_string()
+                              character
                             );
                         }
                     }
@@ -448,7 +438,7 @@ pub fn gpu(config: Config) -> ocl::Result<()> {
     // set up the context to use
     let context = Context::builder()
                     .platform(platform)
-                    .devices(device.clone())
+                    .devices(device)
                     .build()?;
 
     // set up the program to use
@@ -555,9 +545,9 @@ pub fn gpu(config: Config) -> ocl::Result<()> {
 
             // get the total runtime and parse into hours : minutes : seconds
             let total_runtime = current_time - start_time;
-            let total_runtime_hrs = *&total_runtime as u64 / (3600);
+            let total_runtime_hrs = total_runtime as u64 / (3600);
             let total_runtime_mins = (
-              *&total_runtime as u64 - &total_runtime_hrs * 3600
+              total_runtime as u64 - &total_runtime_hrs * 3600
             ) / 60;
             let total_runtime_secs = &total_runtime - (
               &total_runtime_hrs * 3600
@@ -620,7 +610,7 @@ pub fn gpu(config: Config) -> ocl::Result<()> {
                                            .collect();
             let ordered: Vec<String> = last_rows.iter().cloned().rev().collect();
             let recently_found = &ordered.join("\n");
-            term.write_line(&recently_found)?;
+            term.write_line(recently_found)?;
 
             // build the kernel and define the type of each buffer
             let kern = ocl_pq.kernel_builder("hashMessage")
@@ -671,7 +661,7 @@ pub fn gpu(config: Config) -> ocl::Result<()> {
         solutions
           .iter()
           .filter(|&i| *i != 0)
-          .map(|i| u64_to_le_fixed_8(i))
+          .map(u64_to_le_fixed_8)
           .for_each(|solution| {
             // proceed if a solution is found at the given location
             if &solution != &EIGHT_ZERO_BYTES {
@@ -720,7 +710,7 @@ pub fn gpu(config: Config) -> ocl::Result<()> {
 
                 // get the address that results from the hash
                 let address_hex_string = hex::encode(&address_bytes);
-                let address = format!("{}", &address_hex_string);
+                let address = (&address_hex_string).to_string();
 
                 // encode address and set up a variable for the checksum
                 let address_encoded = address.as_bytes();
@@ -730,7 +720,7 @@ pub fn gpu(config: Config) -> ocl::Result<()> {
                 let mut checksum_hash = Keccak::new_keccak256();
 
                 // update with utf8-encoded address (total: 20 bytes)
-                checksum_hash.update(&address_encoded);
+                checksum_hash.update(address_encoded);
 
                 // hash the payload and get the result
                 let mut checksum_res: [u8; 32] = [0; 32];
@@ -752,13 +742,13 @@ pub fn gpu(config: Config) -> ocl::Result<()> {
                         checksum_address = format!(
                           "{}{}",
                           checksum_address,
-                          character.to_uppercase().to_string()
+                          character.to_uppercase()
                         );
                     } else {
                         checksum_address = format!(
                           "{}{}",
                           checksum_address,
-                          character.to_string()
+                          character
                         );
                     }
                 }
@@ -775,7 +765,7 @@ pub fn gpu(config: Config) -> ocl::Result<()> {
                 );
 
                 let show = format!("{} ({} / {})", &output, &leading, &total);
-                let next_found = vec![show.to_string()];
+                let next_found = vec![show];
                 found_list.extend(next_found);
 
                 file.lock_exclusive().expect("Couldn't lock file.");
@@ -785,7 +775,7 @@ pub fn gpu(config: Config) -> ocl::Result<()> {
                 );
 
                 file.unlock().expect("Couldn't unlock file.");
-                found = found + 1;
+                found += 1;
             }
         });
     }

@@ -16,10 +16,8 @@ fn main() {
 	        eprintln!("CPU application error: {}", e);
 	        process::exit(1);
 	    }
-    } else {
-	    if let Err(e) = create2crunch::gpu(config) {
-	        eprintln!("GPU application error: {}", e);
-	        process::exit(1);
-	    }
-    }
+    } else if let Err(e) = create2crunch::gpu(config) {
+    	        eprintln!("GPU application error: {}", e);
+    	        process::exit(1);
+    	    }
 }
